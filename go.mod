@@ -44,6 +44,7 @@ require (
 	github.com/sethvargo/go-password v0.2.0
 	github.com/shurcooL/httpfs v0.0.0-20171119174359-809beceb2371
 	github.com/shurcooL/vfsgen v0.0.0-20180121065927-ffb13db8def0
+	github.com/sirupsen/logrus v1.8.1
 	github.com/spf13/cobra v1.1.3
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.8.1
