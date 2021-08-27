@@ -17,15 +17,15 @@ builds:
       - CGO_ENABLED=0
     goos: &build-goos
       - linux
-      - windows
+#      - windows
       - darwin
     goarch: &build-arch
-      - "386"
+#      - "386"
       - amd64
-      - arm64
+#      - arm64
     hooks: &build-hooks
       # Install upx first, https://github.com/upx/upx/releases
-      post: upx -9 "{{ .Path }}"
+#      post: upx -9 "{{ .Path }}"
     main: ./cmd/cli
     binary: 'capact-{{ .Os }}-{{ .Arch }}'
     ldflags:
@@ -51,10 +51,10 @@ dockers:
     ids:
       - capact
     image_templates:
-      - "ghcr.io/mszostok/tools/capact-cli:stable"
-      - "ghcr.io/mszostok/tools/capact-cli:{{ .Tag }}"
-      - "ghcr.io/mszostok/tools/capact-cli:v{{ .Major }}.{{ .Minor }}"
-      - "ghcr.io/mszostok/tools/capact-cli:v{{ .Major }}"
+      - "ghcr.io/mszostok/capact-cli:stable"
+      - "ghcr.io/mszostok/capact-cli:{{ .Tag }}"
+      - "ghcr.io/mszostok/capact-cli:v{{ .Major }}.{{ .Minor }}"
+      - "ghcr.io/mszostok/capact-cli:v{{ .Major }}"
 
 checksum:
   name_template: 'checksums.txt'
