@@ -62,4 +62,5 @@ type Options struct {
 	UpdateHostsFile    bool
 	UpdateTrustedCerts bool
 	Verbose            bool
+	Registry           string
 }
