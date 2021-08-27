@@ -81,7 +81,7 @@ func Install(ctx context.Context, w io.Writer, k8sCfg *rest.Config, opts capact.
 	}
 
 	if opts.UpdateHostsFile {
-		err = capact.AddGatewayToHostsFile(status)
+		err = capact.UpdateHostsFile(status, opts.Registry)
 		if err != nil {
 			return err
 		}

@@ -1,6 +1,7 @@
 package capact
 
 import (
+	"github.com/pkg/errors"
 	"time"
 )
 
@@ -63,4 +64,11 @@ type Options struct {
 	UpdateTrustedCerts bool
 	Verbose            bool
 	Registry           string
+}
+
+func (o *Options) Validate() error {
+	if o.Registry != "" && o.Environment != K3dEnv {
+		return errors.New("registry can be used only with K3d environment")
+	}
+	return nil
 }
