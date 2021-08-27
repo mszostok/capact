@@ -17,9 +17,10 @@ jobs:
     runs-on: ubuntu-latest
     environment: Release
     permissions:
-      contents: read
+      contents: write
       pull-requests: read
       issues: read
+      packages: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
