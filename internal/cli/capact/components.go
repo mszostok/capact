@@ -159,9 +159,15 @@ func (c *ComponentData) runUpgrade(upgradeCli *action.Upgrade, values map[string
 		return nil, errors.Wrap(err, "while loading Helm chart")
 	}
 
-	r, err := upgradeCli.Run(c.Name(), chartData, values)
+	//  Sometimes we run into in issue with webhooks, e.g.
+	//  Internal error occurred: failed calling webhook "validate.nginx.ingress.kubernetes.io": Post "https://ingress-nginx-controller-admission.capact-system.svc:443/networking/v1beta1/ingresses?timeout=10s": dial tcp 10.43.95.159:443: connect: connection refused
+	var r *release.Release
+	err = retry.Do(func() error {
+		r, err = upgradeCli.Run(c.Name(), chartData, values)
+		return errors.Wrapf(err, "while upgrading Helm chart [%s]", c.Name())
+	}, retry.Attempts(3))
 	if err != nil {
-		return nil, errors.Wrapf(err, "while upgrading Helm chart [%s]", c.Name())
+		return nil, err
 	}
 	return r, nil
 }
