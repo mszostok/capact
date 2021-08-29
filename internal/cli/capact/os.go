@@ -10,17 +10,25 @@ import (
 	"runtime"
 	"strings"
 
+	"capact.io/capact/internal/cli/environment/create"
 	"capact.io/capact/internal/cli/printer"
 )
 
-// UpdateHostsFile adds a new entry to the /etc/hosts file for Capact Gateway and local registry.
-func UpdateHostsFile(status *printer.Status, registry string) error {
-	hosts := "/etc/hosts"
-	entry := fmt.Sprintf("\n127.0.0.1 gateway.%s.local", Name)
-	if registry != "" {
-		entry = fmt.Sprintf("%s\n127.0.0.1 %s", entry, registry)
-	}
+const hosts = "/etc/hosts"
 
+// AddGatewayToHostsFile adds a new entry to the /etc/hosts file for Capact Gateway.
+func AddGatewayToHostsFile(status *printer.Status) error {
+	entry := fmt.Sprintf("\n127.0.0.1 gateway.%s.local", Name)
+	return updateHostFile(status, entry)
+}
+
+// AddRegistryToHostsFile adds a new entry to the /etc/hosts file for Capact local Docker registry.
+func AddRegistryToHostsFile(status *printer.Status) error {
+	entry := fmt.Sprintf("\n127.0.0.1 %s", create.ContainerRegistry)
+	return updateHostFile(status, entry)
+}
+
+func updateHostFile(status *printer.Status, entry string) error {
 	data, err := ioutil.ReadFile(hosts)
 	if err != nil {
 		return err
@@ -29,7 +37,7 @@ func UpdateHostsFile(status *printer.Status, registry string) error {
 		return nil
 	}
 
-	status.Step("Updating /etc/hosts file")
+	status.Step("Updating %s file", hosts)
 	// #nosec G204
 	cmd := exec.Command("/bin/sh", "-c", fmt.Sprintf("echo \"%s\"| sudo tee -a /etc/hosts >/dev/null", entry))
 	cmd.Stdout = os.Stdout
