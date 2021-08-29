@@ -54,10 +54,14 @@ type Options struct {
 	Environment        string
 	InstallComponents  []string
 	BuildImages        []string
-	DryRun             bool
 	Timeout            time.Duration
 	Parameters         InputParameters
 	UpdateHostsFile    bool
 	UpdateTrustedCerts bool
 	Verbose            bool
+
+	// Helm client opts
+	DryRun       bool
+	Replace      bool
+	ClientOnly   bool
 }

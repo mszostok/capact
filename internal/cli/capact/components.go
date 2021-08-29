@@ -35,9 +35,10 @@ import (
 // Component is a Capact component which can be installed in the environment
 type Component interface {
 	InstallUpgrade(ctx context.Context, version string) (*release.Release, error)
+	RunInstall(version string, values map[string]interface{}) (*release.Release, error)
 	Name() string
 	Chart() string
-	withOptions(*Options)
+	WithOptions(*Options)
 	withConfiguration(*action.Configuration)
 	withWriter(io.Writer)
 }
@@ -84,6 +85,9 @@ func (c *ComponentData) Chart() string {
 func (c *ComponentData) installAction(version string) *action.Install {
 	installCli := action.NewInstall(c.configuration)
 
+	installCli.Replace = c.opts.Replace
+	installCli.ClientOnly = c.opts.ClientOnly
+
 	installCli.DryRun = c.opts.DryRun
 	installCli.Namespace = c.opts.Namespace
 	installCli.Timeout = c.opts.Timeout
@@ -119,7 +123,7 @@ func (c *ComponentData) withConfiguration(configuration *action.Configuration) {
 	c.configuration = configuration
 }
 
-func (c *ComponentData) withOptions(options *Options) {
+func (c *ComponentData) WithOptions(options *Options) {
 	c.opts = options
 }
 
@@ -131,8 +135,7 @@ func (c *ComponentData) runUpgrade(upgradeCli *action.Upgrade, values map[string
 	histClient := action.NewHistory(c.configuration)
 	histClient.Max = 1
 	if _, err := histClient.Run(c.Name()); err == driver.ErrReleaseNotFound {
-		installAction := c.installAction(upgradeCli.Version)
-		return c.runInstall(installAction, values)
+		return c.RunInstall(upgradeCli.Version, values)
 	}
 	var chartPath string
 	var err error
@@ -163,7 +166,9 @@ func (c *ComponentData) runUpgrade(upgradeCli *action.Upgrade, values map[string
 	return r, nil
 }
 
-func (c *ComponentData) runInstall(installCli *action.Install, values map[string]interface{}) (*release.Release, error) {
+func (c *ComponentData) RunInstall(version string, values map[string]interface{}) (*release.Release, error) {
+	installCli := c.installAction(version)
+
 	var chartPath string
 	var err error
 	var location string
@@ -224,6 +229,7 @@ func (h Helm) writeHelmDetails(out io.Writer) {
 var Components = components{
 	&Neo4j{
 		ComponentData{
+			configuration: new(action.Configuration),
 			ReleaseName: "neo4j",
 			LocalPath:   path.Join(LocalChartsPath, "neo4j"),
 			Wait:        true,
@@ -231,6 +237,7 @@ var Components = components{
 	},
 	&IngressController{
 		ComponentData{
+			configuration: new(action.Configuration),
 			ReleaseName: "ingress-nginx",
 			ChartName:   "ingress-controller",
 			LocalPath:   path.Join(LocalChartsPath, "ingress-nginx"),
@@ -239,12 +246,14 @@ var Components = components{
 	},
 	&Argo{
 		ComponentData{
+			configuration: new(action.Configuration),
 			ReleaseName: "argo",
 			LocalPath:   path.Join(LocalChartsPath, "argo"),
 		},
 	},
 	&CertManager{
 		ComponentData{
+			configuration: new(action.Configuration),
 			ReleaseName: "cert-manager",
 			LocalPath:   path.Join(LocalChartsPath, "cert-manager"),
 			Wait:        true,
@@ -252,18 +261,21 @@ var Components = components{
 	},
 	&Kubed{
 		ComponentData{
+			configuration: new(action.Configuration),
 			ReleaseName: "kubed",
 			LocalPath:   path.Join(LocalChartsPath, "kubed"),
 		},
 	},
 	&Monitoring{
 		ComponentData{
+			configuration: new(action.Configuration),
 			ReleaseName: "monitoring",
 			LocalPath:   path.Join(LocalChartsPath, "monitoring"),
 		},
 	},
 	&Capact{
 		ComponentData{
+			configuration: new(action.Configuration),
 			ReleaseName: "capact",
 			LocalPath:   path.Join(LocalChartsPath, "capact"),
 			Wait:        true,
@@ -596,7 +608,7 @@ func (h *Helm) InstallComponents(ctx context.Context, w io.Writer, status *print
 			continue
 		}
 
-		component.withOptions(&h.opts)
+		component.WithOptions(&h.opts)
 		component.withConfiguration(h.configuration)
 		component.withWriter(w)
 
