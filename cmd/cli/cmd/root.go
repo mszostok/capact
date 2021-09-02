@@ -29,7 +29,7 @@ var (
 func NewRoot() *cobra.Command {
 	rootCmd := &cobra.Command{
 		Use:   cli.Name,
-		Short: "Collective Capability Manager CLI",
+		Short: "Collective Capability Manager CLI - simple change",
 		Long: strings.Join(
 			[]string{
 				"```",
