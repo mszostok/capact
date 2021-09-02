@@ -36,5 +36,5 @@ capact logout localhost:8080
 
 ### SEE ALSO
 
-* [capact](capact.md)	 - Collective Capability Manager CLI
+* [capact](capact.md)	 - Collective Capability Manager CLI - simple change
 

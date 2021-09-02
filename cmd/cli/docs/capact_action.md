@@ -21,7 +21,7 @@ This command consists of multiple subcommands to interact with target Actions
 
 ### SEE ALSO
 
-* [capact](capact.md)	 - Collective Capability Manager CLI
+* [capact](capact.md)	 - Collective Capability Manager CLI - simple change
 * [capact action create](capact_action_create.md)	 - Creates/renders a new Action with a specified Interface
 * [capact action delete](capact_action_delete.md)	 - Deletes the Action
 * [capact action get](capact_action_get.md)	 - Displays one or multiple Actions

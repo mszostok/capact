@@ -21,7 +21,7 @@ This command consists of multiple subcommands to interact with target TypeInstan
 
 ### SEE ALSO
 
-* [capact](capact.md)	 - Collective Capability Manager CLI
+* [capact](capact.md)	 - Collective Capability Manager CLI - simple change
 * [capact typeinstance apply](capact_typeinstance_apply.md)	 - Apply a given TypeInstance(s)
 * [capact typeinstance create](capact_typeinstance_create.md)	 - Creates a new TypeInstance(s)
 * [capact typeinstance delete](capact_typeinstance_delete.md)	 - Delete a given TypeInstance(s)

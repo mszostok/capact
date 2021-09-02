@@ -39,5 +39,5 @@ capact login localhost:8080 -u user
 
 ### SEE ALSO
 
-* [capact](capact.md)	 - Collective Capability Manager CLI
+* [capact](capact.md)	 - Collective Capability Manager CLI - simple change
 

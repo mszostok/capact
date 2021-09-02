@@ -21,6 +21,6 @@ This command consists of multiple subcommands to interact with OCF manifests
 
 ### SEE ALSO
 
-* [capact](capact.md)	 - Collective Capability Manager CLI
+* [capact](capact.md)	 - Collective Capability Manager CLI - simple change
 * [capact manifest validate](capact_manifest_validate.md)	 - Validate OCF manifests
 

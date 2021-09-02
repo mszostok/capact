@@ -4,7 +4,7 @@ title: capact
 
 ## capact
 
-Collective Capability Manager CLI
+Collective Capability Manager CLI - simple change
 
 ### Synopsis
 

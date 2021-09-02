@@ -21,7 +21,7 @@ This command consists of multiple subcommands to interact with Hub server.
 
 ### SEE ALSO
 
-* [capact](capact.md)	 - Collective Capability Manager CLI
+* [capact](capact.md)	 - Collective Capability Manager CLI - simple change
 * [capact hub implementation](capact_hub_implementation.md)	 - This command consists of multiple subcommands to interact with Implementations stored on the Hub server
 * [capact hub interface](capact_hub_interface.md)	 - This command consists of multiple subcommands to interact with Interfaces stored on the Hub server
 

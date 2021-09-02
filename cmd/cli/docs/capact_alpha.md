@@ -25,6 +25,6 @@ Subcommand for alpha features in the CLI
 
 ### SEE ALSO
 
-* [capact](capact.md)	 - Collective Capability Manager CLI
+* [capact](capact.md)	 - Collective Capability Manager CLI - simple change
 * [capact alpha manifest-gen](capact_alpha_manifest-gen.md)	 - Manifests generation
 
