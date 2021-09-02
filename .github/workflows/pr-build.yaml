@@ -56,6 +56,15 @@ jobs:
         uses: actions/setup-go@v2
         with:
           go-version: ${{env.GO_VERSION}}
+      - uses: actions/cache@v2
+        with:
+          # Cache for Linux: (https://github.com/actions/cache/blob/main/examples.md#go---modules)
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
       - name: Run linting
         run: |
           make test-lint
@@ -181,6 +190,15 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           . ./hack/ci/setup-env.sh
+      - uses: actions/cache@v2
+        with:
+          # Cache for Linux: (https://github.com/actions/cache/blob/main/examples.md#go---modules)
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
       - run: |
           make build-app-image-${{ matrix.APP }}
           make save-app-image-${{ matrix.APP }}
@@ -246,6 +264,15 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           . ./hack/ci/setup-env.sh
+      - uses: actions/cache@v2
+        with:
+          # Cache for Linux: (https://github.com/actions/cache/blob/main/examples.md#go---modules)
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
       - run: |
           make build-test-image-${{ matrix.TEST }}
           make save-test-image-${{ matrix.TEST }}
@@ -310,6 +337,15 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           . ./hack/ci/setup-env.sh
+      - uses: actions/cache@v2
+        with:
+          # Cache for Linux: (https://github.com/actions/cache/blob/main/examples.md#go---modules)
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
       - run: |
           make build-infra-image-${{ matrix.INFRA }}
           make save-infra-image-${{ matrix.INFRA }}
@@ -377,6 +413,15 @@ jobs:
         uses: actions/setup-go@v2
         with:
           go-version: ${{env.GO_VERSION}}
+      - uses: actions/cache@v2
+        with:
+          # Cache for Linux: (https://github.com/actions/cache/blob/main/examples.md#go---modules)
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
       - name: Set up GoReleaser
         run: go install github.com/goreleaser/goreleaser@v0.173.2
       - run: make build-tool-cli
@@ -420,6 +465,15 @@ jobs:
         uses: actions/setup-go@v2
         with:
           go-version: ${{env.GO_VERSION}}
+      - uses: actions/cache@v2
+        with:
+          # Cache for Linux: (https://github.com/actions/cache/blob/main/examples.md#go---modules)
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
       - name: Run K8s Controller integration tests
         run: |
           make test-k8s-controller

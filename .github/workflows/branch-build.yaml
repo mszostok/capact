@@ -35,6 +35,15 @@ jobs:
         uses: actions/setup-go@v2
         with:
           go-version: ${{env.GO_VERSION}}
+      - uses: actions/cache@v2
+        with:
+          # Cache for Linux: (https://github.com/actions/cache/blob/main/examples.md#go---modules)
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
       - name: Run linting
         run: |
           make test-lint
@@ -82,6 +91,15 @@ jobs:
       - name: Setup environment
         run: |
           . ./hack/ci/setup-env.sh
+      - uses: actions/cache@v2
+        with:
+          # Cache for Linux: (https://github.com/actions/cache/blob/main/examples.md#go---modules)
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
       - run: make build-app-image-${{ matrix.APP }}
       - name: Log into registry
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -102,6 +120,15 @@ jobs:
       - name: Setup environment
         run: |
           . ./hack/ci/setup-env.sh
+      - uses: actions/cache@v2
+        with:
+          # Cache for Linux: (https://github.com/actions/cache/blob/main/examples.md#go---modules)
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
       - run: make build-test-image-${{ matrix.TEST }}
       - name: Log into registry
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -123,6 +150,15 @@ jobs:
       - name: Setup environment
         run: |
           . ./hack/ci/setup-env.sh
+      - uses: actions/cache@v2
+        with:
+          # Cache for Linux: (https://github.com/actions/cache/blob/main/examples.md#go---modules)
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
       - run: make build-infra-image-${{ matrix.INFRA }}
       - name: Log into registry
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -170,12 +206,10 @@ jobs:
           go-version: ${{env.GO_VERSION}}
       - uses: actions/cache@v2
         with:
-          # In order:
-          # * Module download cache
-          # * Build cache (Linux)
+          # Cache for Linux: (https://github.com/actions/cache/blob/main/examples.md#go---modules)
           path: |
-            ~/go/pkg/mod
             ~/.cache/go-build
+            ~/go/pkg/mod
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-go-
@@ -208,6 +242,15 @@ jobs:
         uses: actions/setup-go@v2
         with:
           go-version: ${{env.GO_VERSION}}
+      - uses: actions/cache@v2
+        with:
+          # Cache for Linux: (https://github.com/actions/cache/blob/main/examples.md#go---modules)
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
       - name: Run K8s Controller integration tests
         run: |
           make test-k8s-controller
@@ -247,7 +290,7 @@ jobs:
       - name: Setup environment
         run: |
           . ./hack/ci/setup-env.sh
-      - name: Build Capact CLI for linux
+      - name: Download Capact CLI for linux
         run: |
           curl -Lo ./capact https://storage.googleapis.com/capactio-binaries/latest/capact-linux-amd64
           chmod +x ./capact
