@@ -157,6 +157,11 @@ func removeDuplicateSources(sources []string) []string {
 	return result
 }
 
+var getters = map[string]gogetter.Getter{
+	"file": new(gogetter.FileGetter),
+	"git":  new(gogetter.GitGetter),
+}
+
 func getSourcesInfo(ctx context.Context, cfg dbpopulator.Config, log *zap.Logger, sources []string, parent string) ([]dbpopulator.SourceInfo, error) {
 	var sourcesInfo []dbpopulator.SourceInfo
 	for _, source := range sources {
@@ -167,10 +172,6 @@ func getSourcesInfo(ctx context.Context, cfg dbpopulator.Config, log *zap.Logger
 
 		log.Info("Downloading manifests...", zap.String("source", trimSource(source)), zap.String("path", cfg.ManifestsPath))
 
-		getters := map[string]gogetter.Getter{
-			"file": new(gogetter.FileGetter),
-			"git":  new(gogetter.GitGetter),
-		}
 		err = getter.Download(ctx, source, dstDir, getters)
 		if err != nil {
 			return nil, errors.Wrap(err, "while downloading Hub manifests")
