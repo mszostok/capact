@@ -11,7 +11,7 @@ import (
 // Name defines Capact local credential store Name.
 const Name = "capacthub"
 
-func openStore() (keyring.Keyring, error) {
+func openStore() (Keyring, error) {
 	cfg := keyring.Config{
 		ServiceName:              fmt.Sprintf("%s-vault", Name),
 		LibSecretCollectionName:  fmt.Sprintf("%svault", Name),
@@ -26,6 +26,16 @@ func openStore() (keyring.Keyring, error) {
 	backend := config.GetCredentialsStoreBackend()
 	if backend != "" {
 		cfg.AllowedBackends = []keyring.BackendType{keyring.BackendType(backend)}
+	} else {
+		// all without KeychainBackend as it is handled by other lib
+		// to get rid of cgo
+		cfg.AllowedBackends = []keyring.BackendType{
+			keyring.SecretServiceBackend,
+			keyring.KWalletBackend,
+			keyring.WinCredBackend,
+			keyring.FileBackend,
+			keyring.PassBackend,
+		}
 	}
 
 	return keyring.Open(cfg)
