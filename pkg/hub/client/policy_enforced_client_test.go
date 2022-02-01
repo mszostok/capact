@@ -79,13 +79,13 @@ func TestPolicyEnforcedClient_ListRequiredTypeInstancesToInjectBasedOnPolicy(t *
 				Inject: &policy.InjectData{
 					RequiredTypeInstances: []policy.RequiredTypeInstanceToInject{
 						{
-							RequiredTypeInstanceReference: policy.RequiredTypeInstanceReference{
+							TypeInstanceReference: policy.TypeInstanceReference{
 								ID:          "my-uuid",
 								Description: ptr.String("My UUID"),
-							},
-							TypeRef: &types.ManifestRef{
-								Path:     "cap.type.gcp.auth.service-account",
-								Revision: "0.1.1",
+								TypeRef: &types.ManifestRef{
+									Path:     "cap.type.gcp.auth.service-account",
+									Revision: "0.1.1",
+								},
 							},
 						},
 					},
@@ -110,7 +110,7 @@ func TestPolicyEnforcedClient_ListRequiredTypeInstancesToInjectBasedOnPolicy(t *
 				Inject: &policy.InjectData{
 					RequiredTypeInstances: []policy.RequiredTypeInstanceToInject{
 						{
-							RequiredTypeInstanceReference: policy.RequiredTypeInstanceReference{
+							TypeInstanceReference: policy.TypeInstanceReference{
 								ID:          "my-uuid",
 								Description: ptr.String("My UUID"),
 							},
@@ -142,13 +142,13 @@ func TestPolicyEnforcedClient_ListRequiredTypeInstancesToInjectBasedOnPolicy(t *
 				Inject: &policy.InjectData{
 					RequiredTypeInstances: []policy.RequiredTypeInstanceToInject{
 						{
-							RequiredTypeInstanceReference: policy.RequiredTypeInstanceReference{
+							TypeInstanceReference: policy.TypeInstanceReference{
 								ID:          "my-uuid",
 								Description: ptr.String("My UUID"),
-							},
-							TypeRef: &types.ManifestRef{
-								Path:     "cap.type.gcp.auth.service-account",
-								Revision: "0.1.1",
+								TypeRef: &types.ManifestRef{
+									Path:     "cap.type.gcp.auth.service-account",
+									Revision: "0.1.1",
+								},
 							},
 						},
 					},

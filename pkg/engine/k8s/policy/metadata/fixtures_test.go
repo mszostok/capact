@@ -15,7 +15,7 @@ import (
 func fixComplexPolicyWithoutTypeRef() *policy.Policy {
 	return &policy.Policy{
 		Interface: policy.InterfacePolicy{
-			Rules: policy.RulesList{
+			Rules: policy.InterfaceRulesList{
 				{
 					Interface: types.ManifestRefWithOptRevision{
 						Path: "cap.*",
@@ -26,12 +26,12 @@ func fixComplexPolicyWithoutTypeRef() *policy.Policy {
 							Inject: &policy.InjectData{
 								RequiredTypeInstances: []policy.RequiredTypeInstanceToInject{
 									{
-										RequiredTypeInstanceReference: policy.RequiredTypeInstanceReference{
+										TypeInstanceReference: policy.TypeInstanceReference{
 											ID: "id1",
 										},
 									},
 									{
-										RequiredTypeInstanceReference: policy.RequiredTypeInstanceReference{
+										TypeInstanceReference: policy.TypeInstanceReference{
 											ID:          "id2",
 											Description: ptr.String("ID 2"),
 										},
@@ -58,7 +58,7 @@ func fixComplexPolicyWithoutTypeRef() *policy.Policy {
 							Inject: &policy.InjectData{
 								RequiredTypeInstances: []policy.RequiredTypeInstanceToInject{
 									{
-										RequiredTypeInstanceReference: policy.RequiredTypeInstanceReference{
+										TypeInstanceReference: policy.TypeInstanceReference{
 											ID: "id4",
 										},
 									},
@@ -91,7 +91,7 @@ func fixComplexPolicyWithoutTypeRef() *policy.Policy {
 							Inject: &policy.InjectData{
 								RequiredTypeInstances: []policy.RequiredTypeInstanceToInject{
 									{
-										RequiredTypeInstanceReference: policy.RequiredTypeInstanceReference{
+										TypeInstanceReference: policy.TypeInstanceReference{
 											ID: "id7",
 										},
 									},
@@ -110,13 +110,50 @@ func fixComplexPolicyWithoutTypeRef() *policy.Policy {
 				},
 			},
 		},
+		TypeInstance: policy.TypeInstancePolicy{
+			Rules: []policy.RulesForTypeInstance{
+				{
+					TypeRef: types.ManifestRefWithOptRevision{
+						Path:     "cap.type.aws.auth.credentials",
+						Revision: ptr.String("0.1.0"),
+					},
+					Backend: policy.TypeInstanceBackend{
+						TypeInstanceReference: policy.TypeInstanceReference{
+							ID:          "id9",
+							Description: ptr.String("ID 9"),
+						},
+					},
+				},
+				{
+					TypeRef: types.ManifestRefWithOptRevision{
+						Path: "cap.type.aws.*",
+					},
+					Backend: policy.TypeInstanceBackend{
+						TypeInstanceReference: policy.TypeInstanceReference{
+							ID: "id10",
+						},
+					},
+				},
+				{
+					TypeRef: types.ManifestRefWithOptRevision{
+						Path: "cap.*",
+					},
+					Backend: policy.TypeInstanceBackend{
+						TypeInstanceReference: policy.TypeInstanceReference{
+							ID:          "id11",
+							Description: ptr.String("ID 11"),
+						},
+					},
+				},
+			},
+		},
 	}
 }
 
 func fixComplexPolicyWithTypeRef() *policy.Policy {
 	return &policy.Policy{
 		Interface: policy.InterfacePolicy{
-			Rules: policy.RulesList{
+			Rules: policy.InterfaceRulesList{
 				{
 					Interface: types.ManifestRefWithOptRevision{
 						Path: "cap.*",
@@ -127,22 +164,22 @@ func fixComplexPolicyWithTypeRef() *policy.Policy {
 							Inject: &policy.InjectData{
 								RequiredTypeInstances: []policy.RequiredTypeInstanceToInject{
 									{
-										RequiredTypeInstanceReference: policy.RequiredTypeInstanceReference{
+										TypeInstanceReference: policy.TypeInstanceReference{
 											ID: "id1",
-										},
-										TypeRef: &types.ManifestRef{
-											Path:     "cap.type.type1",
-											Revision: "0.1.0",
+											TypeRef: &types.ManifestRef{
+												Path:     "cap.type.type1",
+												Revision: "0.1.0",
+											},
 										},
 									},
 									{
-										RequiredTypeInstanceReference: policy.RequiredTypeInstanceReference{
+										TypeInstanceReference: policy.TypeInstanceReference{
 											ID:          "id2",
 											Description: ptr.String("ID 2"),
-										},
-										TypeRef: &types.ManifestRef{
-											Path:     "cap.type.type2",
-											Revision: "0.2.0",
+											TypeRef: &types.ManifestRef{
+												Path:     "cap.type.type2",
+												Revision: "0.2.0",
+											},
 										},
 									},
 								},
@@ -175,12 +212,12 @@ func fixComplexPolicyWithTypeRef() *policy.Policy {
 							Inject: &policy.InjectData{
 								RequiredTypeInstances: []policy.RequiredTypeInstanceToInject{
 									{
-										RequiredTypeInstanceReference: policy.RequiredTypeInstanceReference{
+										TypeInstanceReference: policy.TypeInstanceReference{
 											ID: "id4",
-										},
-										TypeRef: &types.ManifestRef{
-											Path:     "cap.type.type4",
-											Revision: "0.4.0",
+											TypeRef: &types.ManifestRef{
+												Path:     "cap.type.type4",
+												Revision: "0.4.0",
+											},
 										},
 									},
 								},
@@ -220,12 +257,12 @@ func fixComplexPolicyWithTypeRef() *policy.Policy {
 							Inject: &policy.InjectData{
 								RequiredTypeInstances: []policy.RequiredTypeInstanceToInject{
 									{
-										RequiredTypeInstanceReference: policy.RequiredTypeInstanceReference{
+										TypeInstanceReference: policy.TypeInstanceReference{
 											ID: "id7",
-										},
-										TypeRef: &types.ManifestRef{
-											Path:     "cap.type.type7",
-											Revision: "0.7.0",
+											TypeRef: &types.ManifestRef{
+												Path:     "cap.type.type7",
+												Revision: "0.7.0",
+											},
 										},
 									},
 								},
@@ -241,6 +278,55 @@ func fixComplexPolicyWithTypeRef() *policy.Policy {
 										},
 									},
 								},
+							},
+						},
+					},
+				},
+			},
+		},
+		TypeInstance: policy.TypeInstancePolicy{
+			Rules: []policy.RulesForTypeInstance{
+				{
+					TypeRef: types.ManifestRefWithOptRevision{
+						Path:     "cap.type.aws.auth.credentials",
+						Revision: ptr.String("0.1.0"),
+					},
+					Backend: policy.TypeInstanceBackend{
+						TypeInstanceReference: policy.TypeInstanceReference{
+							ID:          "id9",
+							Description: ptr.String("ID 9"),
+							TypeRef: &types.ManifestRef{
+								Path:     "cap.type.type9",
+								Revision: "0.9.0",
+							},
+						},
+					},
+				},
+				{
+					TypeRef: types.ManifestRefWithOptRevision{
+						Path: "cap.type.aws.*",
+					},
+					Backend: policy.TypeInstanceBackend{
+						TypeInstanceReference: policy.TypeInstanceReference{
+							ID: "id10",
+							TypeRef: &types.ManifestRef{
+								Path:     "cap.type.type10",
+								Revision: "0.10.0",
+							},
+						},
+					},
+				},
+				{
+					TypeRef: types.ManifestRefWithOptRevision{
+						Path: "cap.*",
+					},
+					Backend: policy.TypeInstanceBackend{
+						TypeInstanceReference: policy.TypeInstanceReference{
+							ID:          "id11",
+							Description: ptr.String("ID 11"),
+							TypeRef: &types.ManifestRef{
+								Path:     "cap.type.type11",
+								Revision: "0.11.0",
 							},
 						},
 					},

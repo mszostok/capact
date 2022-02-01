@@ -69,6 +69,7 @@ func (r *Resolver) ResolveTypeInstanceMetadata(ctx context.Context, policy *poli
 
 	r.setTypeRefsForRequiredTypeInstances(policy, res)
 	r.setTypeRefsForAdditionalTypeInstances(policy, res)
+	r.setTypeRefsForBackendTypeInstances(policy, res) // probably change and verify that it's attached to `cap.core.type.hub.storage` node.
 
 	return nil
 }
@@ -111,6 +112,20 @@ func (r *Resolver) setTypeRefsForAdditionalTypeInstances(policy *policy.Policy, 
 					Revision: typeRef.Revision,
 				}
 			}
+		}
+	}
+}
+
+func (r *Resolver) setTypeRefsForBackendTypeInstances(policy *policy.Policy, typeRefs map[string]hublocalgraphql.TypeInstanceTypeReference) {
+	for ruleIdx, rule := range policy.TypeInstance.Rules {
+		typeRef, exists := typeRefs[rule.Backend.ID]
+		if !exists {
+			continue
+		}
+
+		policy.TypeInstance.Rules[ruleIdx].Backend.TypeRef = &types.ManifestRef{
+			Path:     typeRef.Path,
+			Revision: typeRef.Revision,
 		}
 	}
 }

@@ -1,6 +1,7 @@
 package types_test
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path"
@@ -118,4 +119,32 @@ func mustChDirToRoot(t *testing.T) {
 	if err != nil {
 		t.Fatal(err.Error())
 	}
+}
+
+func TestTypeInstanceBackendCollection_Get(t *testing.T) {
+	data := types.TypeInstanceBackendCollection{}
+
+	data.Set(types.TypeRef{
+		Path:     "cap.type.capactio.examples.message",
+		Revision: "0.1.0",
+	}, types.TypeInstanceBackend{
+		ID: "1",
+	})
+
+	data.Set(types.TypeRef{
+		Path: "cap.type.capactio.examples.*",
+	}, types.TypeInstanceBackend{
+		ID: "2",
+	})
+
+	data.Set(types.TypeRef{
+		Path: "cap.*",
+	}, types.TypeInstanceBackend{
+		ID: "3",
+	})
+
+	fmt.Println(data.Get(types.TypeRef{
+		Path:     "acap.capactio.examples.asdf",
+		Revision: "0.1.0",
+	}))
 }

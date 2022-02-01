@@ -1,6 +1,7 @@
 package client
 
 import (
+	"capact.io/capact/internal/ptr"
 	"context"
 	"fmt"
 	"sync"
@@ -133,6 +134,43 @@ func (e *PolicyEnforcedClient) ListRequiredTypeInstancesToInjectBasedOnPolicy(po
 	}
 
 	return typeInstancesToInject, nil
+}
+
+func (e *PolicyEnforcedClient) ListTypeInstancesBackendsBasedOnPolicy(ctx context.Context, policyRule policy.Rule) (types.TypeInstanceBackendCollection, error) {
+	out := types.TypeInstanceBackendCollection{}
+
+	// TODO: set default PostgreSQL storage
+	out.Set(types.DefaultTypeInstanceBackendKey, types.TypeInstanceBackend{
+		ID:          "123123123123",
+		Description: ptr.String("Default Capact storage"),
+	})
+	// 1. Global Defaults
+	for _, rule := range e.mergedPolicy.TypeInstance.Rules {
+		//if rule.TypeRef.Revision == nil || *rule.TypeRef.Revision == "" {
+		//latestRev, err := e.hubCli.GetTypeLatestRevisionString(ctx, interfaceRef)
+		//if err != nil {
+		//	return out, errors.Wrap(err, "while fetching latest Interface revision string")
+		//}
+		//
+		//rule.TypeRef.Revision = latestRev
+		//}
+
+		out.Set(types.TypeRef{
+			Path:     rule.TypeRef.Path,
+			Revision: *rule.TypeRef.Revision, // it's resolved
+		}, types.TypeInstanceBackend{
+			ID:          rule.Backend.ID,
+			Description: rule.Backend.Description,
+		})
+	}
+
+	// TODO(https://github.com/capactio/capact/issues/624):
+	// 2. Override with Interface defaults
+	// e.mergedPolicy.Interface.Defaults // find types which extend `cap.core.type.hub.storage`
+
+	// 3. Override with Interface
+	// policyRule.Inject.RequiredTypeInstances // find requires which extend `cap.core.type.hub.storage`
+	return out, nil
 }
 
 // ListAdditionalTypeInstancesToInjectBasedOnPolicy returns the additional TypeInstance references,

@@ -1,0 +1,137 @@
+{
+	"data": {
+		"policy": {
+			"interface": {
+				"rules": [
+					{
+						"interface": {
+							"path": "cap.interface.database.postgresql.install",
+							"revision": "0.1.0"
+						},
+						"oneOf": [
+							{
+								"implementationConstraints": {
+									"attributes": [
+										{
+											"path": "cap.attribute.cloud.provider.gcp",
+											"revision": "0.1.0"
+										}
+									],
+									"path": null,
+									"requires": [
+										{
+											"path": "cap.type.gcp.auth.service-account",
+											"revision": null
+										}
+									]
+								},
+								"inject": {
+									"additionalParameters": [
+										{
+											"name": "additional-parameters",
+											"value": {
+												"replicaCount": 3
+											}
+										}
+									],
+									"additionalTypeInstances": [
+										{
+											"id": "0b6dba9a-d111-419d-b236-357cf0e8603a",
+											"name": "sample"
+										}
+									],
+									"requiredTypeInstances": [
+										{
+											"description": "GCP Service Account",
+											"id": "9038dcdc-e959-41c4-a690-d8ebf929ac0c"
+										}
+									]
+								}
+							},
+							{
+								"implementationConstraints": {
+									"attributes": [
+										{
+											"path": "cap.attribute.cloud.provider.aws",
+											"revision": null
+										}
+									],
+									"path": null,
+									"requires": null
+								},
+								"inject": null
+							},
+							{
+								"implementationConstraints": {
+									"attributes": null,
+									"path": "cap.implementation.bitnami.postgresql.install",
+									"requires": null
+								},
+								"inject": null
+							}
+						]
+					},
+					{
+						"interface": {
+							"path": "cap.*",
+							"revision": null
+						},
+						"oneOf": [
+							{
+								"implementationConstraints": {
+									"attributes": null,
+									"path": null,
+									"requires": [
+										{
+											"path": "cap.core.type.platform.kubernetes",
+											"revision": null
+										}
+									]
+								},
+								"inject": null
+							},
+							{
+								"implementationConstraints": {
+									"attributes": null,
+									"path": null,
+									"requires": null
+								},
+								"inject": null
+							}
+						]
+					}
+				]
+			},
+			"typeInstance": {
+				"rules": [
+					{
+						"typeRef": {
+							"path": "cap.type.aws.auth.credentials",
+							"revision": "0.1.0"
+						},
+						"backend": {
+							"id": "00fd161c-01bd-47a6-9872-47490e11f996"
+						}
+					},
+					{
+						"typeRef": {
+							"path": "cap.type.aws.*"
+						},
+						"backend": {
+							"id": "31bb8355-10d7-49ce-a739-4554d8a40b63"
+						}
+					},
+					{
+						"typeRef": {
+							"path": "cap.*"
+						},
+						"backend": {
+							"id": "a36ed738-dfe7-45ec-acd1-8e44e8db893b",
+							"description": "Default Capact PostgreSQL backend"
+						}
+					}
+				]
+			}
+		}
+	}
+}

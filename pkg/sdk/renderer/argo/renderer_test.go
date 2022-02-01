@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"capact.io/capact/internal/logger"
+
 	actionvalidation "capact.io/capact/pkg/sdk/validation/interfaceio"
 	policyvalidation "capact.io/capact/pkg/sdk/validation/policy"
 
@@ -45,7 +47,7 @@ func TestRenderHappyPath(t *testing.T) {
 	policyIOValidator := policyvalidation.NewValidator(fakeCli)
 	wfValidator := renderer.NewWorkflowInputValidator(interfaceIOValidator, policyIOValidator)
 
-	argoRenderer := NewRenderer(renderer.Config{
+	argoRenderer := NewRenderer(logger.Noop(), renderer.Config{
 		RenderTimeout: time.Second,
 		MaxDepth:      20,
 	}, fakeCli, typeInstanceHandler, wfValidator)
@@ -301,7 +303,7 @@ func TestRenderHappyPathWithCustomPolicies(t *testing.T) {
 			policyIOValidator := policyvalidation.NewValidator(fakeCli)
 			wfValidator := renderer.NewWorkflowInputValidator(interfaceIOValidator, policyIOValidator)
 
-			argoRenderer := NewRenderer(renderer.Config{
+			argoRenderer := NewRenderer(logger.Noop(), renderer.Config{
 				RenderTimeout: time.Hour,
 				MaxDepth:      50,
 			}, fakeCli, typeInstanceHandler, wfValidator)
@@ -348,7 +350,7 @@ func TestRendererMaxDepth(t *testing.T) {
 	policyIOValidator := policyvalidation.NewValidator(fakeCli)
 	wfValidator := renderer.NewWorkflowInputValidator(interfaceIOValidator, policyIOValidator)
 
-	argoRenderer := NewRenderer(renderer.Config{
+	argoRenderer := NewRenderer(logger.Noop(), renderer.Config{
 		RenderTimeout: time.Second,
 		MaxDepth:      3,
 	}, fakeCli, typeInstanceHandler, wfValidator)
@@ -387,7 +389,7 @@ func TestRendererDenyAllPolicy(t *testing.T) {
 	policyIOValidator := policyvalidation.NewValidator(fakeCli)
 	wfValidator := renderer.NewWorkflowInputValidator(interfaceIOValidator, policyIOValidator)
 
-	argoRenderer := NewRenderer(renderer.Config{
+	argoRenderer := NewRenderer(logger.Noop(), renderer.Config{
 		RenderTimeout: time.Second,
 		MaxDepth:      3,
 	}, fakeCli, typeInstanceHandler, wfValidator)

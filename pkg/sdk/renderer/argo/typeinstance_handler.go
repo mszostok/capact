@@ -104,6 +104,7 @@ type OutputTypeInstanceRelation struct {
 type OutputTypeInstance struct {
 	ArtifactName *string
 	TypeInstance types.OutputTypeInstance
+	Backend      types.TypeInstanceBackend
 }
 
 // OutputTypeInstances holds information about the output TypeInstances
@@ -143,6 +144,11 @@ func (r *TypeInstanceHandler) AddUploadTypeInstancesStep(rootWorkflow *Workflow,
 				Revision: ti.TypeInstance.TypeRef.Revision,
 			},
 			Attributes: []*graphqllocal.AttributeReferenceInput{},
+			// TODO(https://github.com/capactio/capact/issues/604): add backend ID.
+			//Backend: graphqllocal.TypeInstanceBackend{
+			//	ID: ti.Backend.ID,
+			//	Description:	ti.Backend.Description,
+			//},
 		})
 
 		artifacts = append(artifacts, wfv1.Artifact{
@@ -157,6 +163,7 @@ func (r *TypeInstanceHandler) AddUploadTypeInstancesStep(rootWorkflow *Workflow,
 	}
 
 	for _, relation := range output.relations {
+		// TODO(https://github.com/capactio/capact/issues/604): add relations to used Backend TypeInstance.
 		payload.UsesRelations = append(payload.UsesRelations, &graphqllocal.TypeInstanceUsesRelationInput{
 			From: *relation.From,
 			To:   *relation.To,

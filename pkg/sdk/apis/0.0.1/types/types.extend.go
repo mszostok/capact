@@ -1,6 +1,12 @@
 // Package types holds manually added types.
 package types
 
+import (
+	"fmt"
+	"path/filepath"
+	"strings"
+)
+
 // OCFPathPrefix defines path prefix that all OCF manifest must have.
 const OCFPathPrefix = "cap."
 
@@ -69,4 +75,71 @@ type OCFVersion string
 type ManifestMetadata struct {
 	OCFVersion OCFVersion   `yaml:"ocfVersion"`
 	Kind       ManifestKind `yaml:"kind"`
+}
+
+var DefaultTypeInstanceBackendKey = TypeRef{
+	Path:     "default.typeinstance.backend.key",
+	Revision: "default.typeinstance.backend.key",
+}
+
+// TypeInstanceBackendCollection knows which Backend should be used for a given TypeInstance based on the TypeRef
+type TypeInstanceBackendCollection struct {
+	data map[string]TypeInstanceBackend
+}
+
+type TypeInstanceBackend struct {
+	ID          string
+	Description *string
+}
+
+func (t *TypeInstanceBackendCollection) Set(typeRef TypeRef, backend TypeInstanceBackend) {
+	if t.data == nil {
+		t.data = map[string]TypeInstanceBackend{}
+	}
+
+	t.data[t.key(typeRef)] = backend
+}
+
+func (t TypeInstanceBackendCollection) Get(typeRef TypeRef) TypeInstanceBackend {
+	// 1. Try the explict TypeRef
+	backend, found := t.data[t.key(typeRef)]
+	if found {
+		return backend
+	}
+
+	// 2. Try to find matching entry for a given TypeRef.
+	// For example, if type ref is `cap.type.capactio.examples.message`:
+	//    - cap.type.capactio.examples.*
+	//    - cap.type.capactio.*
+	//    - cap.type.*
+	//    - cap.*
+	const (
+		stopper           = "cap"
+		maxIterationGuard = 30
+	)
+
+	iterations := 0
+	for {
+		if typeRef.Path == stopper || iterations > maxIterationGuard {
+			break
+		}
+
+		typeRef.Path = strings.TrimSuffix(typeRef.Path, filepath.Ext(typeRef.Path))
+		keyPattern := fmt.Sprintf("%s.*", typeRef.Path)
+		fmt.Println(keyPattern)
+		backend, found := t.data[keyPattern]
+		if found {
+			return backend
+		}
+		iterations++
+	}
+
+	return t.data[t.key(DefaultTypeInstanceBackendKey)]
+}
+
+func (t TypeInstanceBackendCollection) key(typeRef TypeRef) string {
+	if typeRef.Revision != "" {
+		return fmt.Sprintf("%s:%s", typeRef.Path, typeRef.Revision)
+	}
+	return typeRef.Path
 }

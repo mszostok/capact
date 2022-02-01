@@ -8,6 +8,8 @@ import (
 	"sort"
 	"strings"
 
+	"go.uber.org/zap"
+
 	"capact.io/capact/internal/ctxutil"
 	"capact.io/capact/internal/k8s-engine/graphql/domain/action"
 
@@ -45,6 +47,7 @@ type dedicatedRenderer struct {
 	typeInstancesToOutput             *OutputTypeInstances
 	typeInstancesToUpdate             UpdateTypeInstances
 	registeredOutputTypeInstanceNames []*string
+	log                               *zap.Logger
 }
 
 // InputArtifact is an Argo artifact with a reference to a Capact TypeInstance.
@@ -54,8 +57,9 @@ type InputArtifact struct {
 	typeInstanceReference *string
 }
 
-func newDedicatedRenderer(maxDepth int, policyEnforcedCli PolicyEnforcedHubClient, typeInstanceHandler *TypeInstanceHandler, opts ...RendererOption) *dedicatedRenderer {
+func newDedicatedRenderer(log *zap.Logger, maxDepth int, policyEnforcedCli PolicyEnforcedHubClient, typeInstanceHandler *TypeInstanceHandler, opts ...RendererOption) *dedicatedRenderer {
 	r := &dedicatedRenderer{
+		log:                 log,
 		maxDepth:            maxDepth,
 		policyEnforcedCli:   policyEnforcedCli,
 		typeInstanceHandler: typeInstanceHandler,
@@ -329,7 +333,11 @@ func (r *dedicatedRenderer) RenderTemplateSteps(ctx context.Context, workflow *W
 
 					// 3.9 Add TypeInstances to the upload graph
 					inputArtifacts := r.tplInputArguments[step.Template]
-					if err := r.addOutputTypeInstancesToGraph(step, workflowPrefix, iface, &implementation, inputArtifacts); err != nil {
+					typeInstancesBackends, err := r.policyEnforcedCli.ListTypeInstancesBackendsBasedOnPolicy(ctx, rule)
+					if err != nil {
+						return nil, errors.Wrap(err, "while resolving TypeInstance Backend based on Policy")
+					}
+					if err := r.addOutputTypeInstancesToGraph(step, workflowPrefix, iface, &implementation, inputArtifacts, typeInstancesBackends); err != nil {
 						return nil, errors.Wrap(err, "while adding TypeInstances to graph")
 					}
 
@@ -927,7 +935,7 @@ func (r *dedicatedRenderer) registerTemplateInputArguments(step *WorkflowStep, a
 	r.tplInputArguments[step.Template] = inputArtifacts
 }
 
-func (r *dedicatedRenderer) addOutputTypeInstancesToGraph(step *WorkflowStep, prefix string, iface *hubpublicapi.InterfaceRevision, impl *hubpublicapi.ImplementationRevision, inputArtifacts []InputArtifact) error {
+func (r *dedicatedRenderer) addOutputTypeInstancesToGraph(step *WorkflowStep, prefix string, iface *hubpublicapi.InterfaceRevision, impl *hubpublicapi.ImplementationRevision, inputArtifacts []InputArtifact, backends types.TypeInstanceBackendCollection) error {
 	artifactNamesMap := map[string]*string{}
 	for _, artifact := range inputArtifacts {
 		artifactNamesMap[artifact.artifact.Name] = artifact.typeInstanceReference
@@ -955,15 +963,22 @@ func (r *dedicatedRenderer) addOutputTypeInstancesToGraph(step *WorkflowStep, pr
 		artifactName := r.addTypeInstanceName(name)
 		artifactNamesMap[item.TypeInstanceName] = artifactName
 
-		r.typeInstancesToOutput.typeInstances = append(r.typeInstancesToOutput.typeInstances, OutputTypeInstance{
+		out := OutputTypeInstance{
 			ArtifactName: artifactName,
+			Backend:      backends.Get(types.TypeRef(*typeRef)),
 			TypeInstance: types.OutputTypeInstance{
 				TypeRef: &types.TypeRef{
 					Path:     typeRef.Path,
 					Revision: typeRef.Revision,
 				},
 			},
-		})
+		}
+		// TODO(https://github.com/capactio/capact/issues/604): REMOVE ME
+		for key, id := range backends {
+			r.log.Debug("Backend", zap.Any("typeRef", key), zap.String("id", id.ID))
+		}
+		r.log.Debug("Upload TypeInstance", zap.String("artifactName", *out.ArtifactName), zap.Any("TypeRef", out.TypeInstance.TypeRef), zap.Any("backend", out.Backend))
+		r.typeInstancesToOutput.typeInstances = append(r.typeInstancesToOutput.typeInstances, out)
 
 		for _, uses := range item.Uses {
 			usesArtifactName, ok := artifactNamesMap[uses]
