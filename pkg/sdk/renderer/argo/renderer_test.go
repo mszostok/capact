@@ -46,8 +46,8 @@ func TestRenderHappyPath(t *testing.T) {
 	interfaceIOValidator := actionvalidation.NewValidator(fakeCli)
 	policyIOValidator := policyvalidation.NewValidator(fakeCli)
 	wfValidator := renderer.NewWorkflowInputValidator(interfaceIOValidator, policyIOValidator)
-
-	argoRenderer := NewRenderer(logger.Noop(), renderer.Config{
+	l, _ := logger.New(logger.Config{DevMode: true})
+	argoRenderer := NewRenderer(l, renderer.Config{
 		RenderTimeout: time.Second,
 		MaxDepth:      20,
 	}, fakeCli, typeInstanceHandler, wfValidator)

@@ -1,6 +1,7 @@
 package argo
 
 import (
+	"capact.io/capact/pkg/engine/k8s/policy"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -175,8 +176,13 @@ func (r *dedicatedRenderer) GetRootTemplates() []*Template {
 // 1. Split it to smaller functions and leave only high level steps here
 // 2. Do not use global state, calling it multiple times seems not to work
 //nolint:gocyclo // This legacy function is complex but the team too busy to simplify it
-func (r *dedicatedRenderer) RenderTemplateSteps(ctx context.Context, workflow *Workflow, importsCollection []*hubpublicapi.ImplementationImport,
-	typeInstances []types.InputTypeInstanceRef, prefix string) (map[string]*string, error) {
+
+type RootImplementation struct {
+	Revision hubpublicapi.ImplementationRevision
+	Rule     policy.Rule
+}
+
+func (r *dedicatedRenderer) RenderTemplateSteps(ctx context.Context, workflow *Workflow, rootimpl RootImplementation, typeInstances []types.InputTypeInstanceRef, prefix string) (map[string]*string, error) {
 	r.currentIteration++
 
 	if ctxutil.ShouldExit(ctx) {
@@ -187,7 +193,15 @@ func (r *dedicatedRenderer) RenderTemplateSteps(ctx context.Context, workflow *W
 		return nil, NewMaxDepthError(r.maxDepth)
 	}
 
-	outputTypeInstances := map[string]*string{}
+	var (
+		outputTypeInstances = map[string]*string{}
+		// importsCollection describes collection from the Implementation manifest for which we
+		// render steps which may uses `capact-action`. Because of the `alias` logic
+		// between `Implementation.spec.imports` and `Implementation.spec.action.args.workflow.templates[*].steps.capact-action`
+		// we need it.
+		// If we are in context of `capact-action` the new Implementation is selected which satisfy a given import Interface.
+		importsCollection = rootimpl.Revision.Spec.Imports
+	)
 
 	for _, tpl := range workflow.Templates {
 		// 0. Aggregate processed templates
@@ -322,7 +336,7 @@ func (r *dedicatedRenderer) RenderTemplateSteps(ctx context.Context, workflow *W
 					r.InjectAdditionalInput(step, additionalParameters)
 
 					for k, v := range newArtifactMappings {
-						artifactMappings[k] = v
+						artifactMappings[k] = v.Name
 					}
 
 					step.Template = importedWorkflow.Entrypoint
@@ -333,17 +347,17 @@ func (r *dedicatedRenderer) RenderTemplateSteps(ctx context.Context, workflow *W
 
 					// 3.9 Add TypeInstances to the upload graph
 					inputArtifacts := r.tplInputArguments[step.Template]
-					typeInstancesBackends, err := r.policyEnforcedCli.ListTypeInstancesBackendsBasedOnPolicy(ctx, rule)
+					typeInstancesBackends, err := r.policyEnforcedCli.ListTypeInstancesBackendsBasedOnPolicy(ctx, rootimpl.Rule, rootimpl.Revision)
 					if err != nil {
 						return nil, errors.Wrap(err, "while resolving TypeInstance Backend based on Policy")
 					}
-					if err := r.addOutputTypeInstancesToGraph(step, workflowPrefix, iface, &implementation, inputArtifacts, typeInstancesBackends); err != nil {
+					if err := r.addOutputTypeInstancesToGraph(step, workflowPrefix, iface, &implementation, inputArtifacts, typeInstancesBackends, newArtifactMappings); err != nil {
 						return nil, errors.Wrap(err, "while adding TypeInstances to graph")
 					}
 
 					// 3.10 Render imported Workflow templates and add them to root templates
 					// TODO(advanced-rendering): currently not supported.
-					actionOutputTypeInstances, err := r.RenderTemplateSteps(ctx, importedWorkflow, implementation.Spec.Imports, nil, workflowPrefix)
+					actionOutputTypeInstances, err := r.RenderTemplateSteps(ctx, importedWorkflow, RootImplementation{Revision: implementation, Rule: rule}, nil, workflowPrefix)
 					if err != nil {
 						return nil, err
 					}
@@ -403,7 +417,12 @@ func (r *dedicatedRenderer) ResolveRunnerInterface(impl hubpublicapi.Implementat
 	return fullRef.Path, nil
 }
 
-func (r *dedicatedRenderer) UnmarshalWorkflowFromImplementation(prefix string, implementation *hubpublicapi.ImplementationRevision) (*Workflow, map[string]string, error) {
+type artefactNameWithBackend struct {
+	Name    string
+	Backend *string
+}
+
+func (r *dedicatedRenderer) UnmarshalWorkflowFromImplementation(prefix string, implementation *hubpublicapi.ImplementationRevision) (*Workflow, map[string]artefactNameWithBackend, error) {
 	workflow, err := r.createWorkflow(implementation)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "while unmarshaling Argo Workflow from OCF Implementation")
@@ -411,7 +430,7 @@ func (r *dedicatedRenderer) UnmarshalWorkflowFromImplementation(prefix string, i
 	if workflow == nil || workflow.WorkflowSpec == nil || workflow.Entrypoint == "" {
 		return nil, nil, errors.New("workflow and its entrypoint cannot be empty")
 	}
-	artifactsNameMapping := map[string]string{}
+	artifactsNameMapping := map[string]artefactNameWithBackend{}
 
 	for i := range workflow.Templates {
 		tmpl := workflow.Templates[i]
@@ -428,7 +447,9 @@ func (r *dedicatedRenderer) UnmarshalWorkflowFromImplementation(prefix string, i
 				}
 
 				newName := addPrefix(prefix, artifact.GlobalName)
-				artifactsNameMapping[artifact.GlobalName] = newName
+				artifactsNameMapping[artifact.GlobalName] = artefactNameWithBackend{
+					Name: newName,
+				}
 				artifact.GlobalName = newName
 			}
 		}
@@ -444,17 +465,25 @@ func (r *dedicatedRenderer) UnmarshalWorkflowFromImplementation(prefix string, i
 					step.Template = addPrefix(prefix, step.Template)
 				}
 
-				typeInstances := make([]TypeInstanceDefinition, 0, len(step.CapactTypeInstanceOutputs)+len(step.CapactTypeInstanceUpdates))
+				typeInstances := make([]CapactTypeInstanceOutputs, 0, len(step.CapactTypeInstanceOutputs)+len(step.CapactTypeInstanceUpdates))
+				r.log.Debug("Add output TypeInstance workflow steps", zap.Any("step.CapactTypeInstanceOutputs", step.CapactTypeInstanceOutputs))
 				typeInstances = append(typeInstances, step.CapactTypeInstanceOutputs...)
-				typeInstances = append(typeInstances, step.CapactTypeInstanceUpdates...)
+				for _, item := range step.CapactTypeInstanceUpdates {
+					typeInstances = append(typeInstances, CapactTypeInstanceOutputs{
+						TypeInstanceDefinition: item,
+					})
+				}
 
 				for _, ti := range typeInstances {
-					tiStep, template, artifactMappings := r.getOutputTypeInstanceTemplate(step, ti, prefix)
+					tiStep, template, artifactMappings := r.getOutputTypeInstanceTemplate(step, ti.TypeInstanceDefinition, prefix)
 					workflow.Templates = append(workflow.Templates, &template)
 					tmpl.Steps = append(tmpl.Steps, ParallelSteps{&tiStep})
 
 					for k, v := range artifactMappings {
-						artifactsNameMapping[k] = v
+						artifactsNameMapping[k] = artefactNameWithBackend{
+							Name:    v,
+							Backend: ti.Backend,
+						}
 					}
 				}
 			}
@@ -935,7 +964,7 @@ func (r *dedicatedRenderer) registerTemplateInputArguments(step *WorkflowStep, a
 	r.tplInputArguments[step.Template] = inputArtifacts
 }
 
-func (r *dedicatedRenderer) addOutputTypeInstancesToGraph(step *WorkflowStep, prefix string, iface *hubpublicapi.InterfaceRevision, impl *hubpublicapi.ImplementationRevision, inputArtifacts []InputArtifact, backends types.TypeInstanceBackendCollection) error {
+func (r *dedicatedRenderer) addOutputTypeInstancesToGraph(step *WorkflowStep, prefix string, iface *hubpublicapi.InterfaceRevision, impl *hubpublicapi.ImplementationRevision, inputArtifacts []InputArtifact, backends types.TypeInstanceBackendCollection, mappings map[string]artefactNameWithBackend) error {
 	artifactNamesMap := map[string]*string{}
 	for _, artifact := range inputArtifacts {
 		artifactNamesMap[artifact.artifact.Name] = artifact.typeInstanceReference
@@ -943,9 +972,16 @@ func (r *dedicatedRenderer) addOutputTypeInstancesToGraph(step *WorkflowStep, pr
 
 	for _, item := range impl.Spec.OutputTypeInstanceRelations {
 		name := item.TypeInstanceName
+		// default from nested workflow
+		// but check if overriden in upper layer.
+		outputBackendAlias := mappings[name].Backend
+
 		if step != nil {
+			r.log.Debug("Resolve", zap.Any("step", step), zap.Any("OutputTypeInstanceRelations", item), zap.Any("out", step.CapactTypeInstanceOutputs), zap.Any("tiname", item.TypeInstanceName))
 			// we have to track the renaming based on capact-outputTypeInstances and prefix it
 			if output := findOutputTypeInstance(step, item.TypeInstanceName); output != nil {
+				r.log.Debug("found capact-outputTypeInstances", zap.Any("capact-outputTypeInstances", output))
+				outputBackendAlias = output.Backend
 				name = addPrefix(prefix, output.From)
 				r.tryReplaceTypeInstanceName(output.Name, name)
 			} else {
@@ -963,22 +999,31 @@ func (r *dedicatedRenderer) addOutputTypeInstancesToGraph(step *WorkflowStep, pr
 		artifactName := r.addTypeInstanceName(name)
 		artifactNamesMap[item.TypeInstanceName] = artifactName
 
-		out := OutputTypeInstance{
+		// select backend
+		r.log.Debug("Backend", zap.Any("backend", backends.GetAll()))
+		backend := backends.GetByTypeRef(types.TypeRef(*typeRef))
+		if outputBackendAlias != nil && *outputBackendAlias != "" {
+			r.log.Debug("found TI output alias", zap.String("backend-alias", *outputBackendAlias))
+			backend1, found := backends.GetByAlias(*outputBackendAlias)
+			backend = backend1
+			if !found {
+				return errors.New("cannot find backend...")
+			}
+		}
+
+		// TODO(https://github.com/capactio/capact/issues/604): REMOVE ME
+
+		r.log.Debug("Upload TypeInstance", zap.String("artifactName", *artifactName), zap.Any("TypeRef", typeRef), zap.Any("backend", backend))
+		r.typeInstancesToOutput.typeInstances = append(r.typeInstancesToOutput.typeInstances, OutputTypeInstance{
 			ArtifactName: artifactName,
-			Backend:      backends.Get(types.TypeRef(*typeRef)),
+			Backend:      backend,
 			TypeInstance: types.OutputTypeInstance{
 				TypeRef: &types.TypeRef{
 					Path:     typeRef.Path,
 					Revision: typeRef.Revision,
 				},
 			},
-		}
-		// TODO(https://github.com/capactio/capact/issues/604): REMOVE ME
-		for key, id := range backends {
-			r.log.Debug("Backend", zap.Any("typeRef", key), zap.String("id", id.ID))
-		}
-		r.log.Debug("Upload TypeInstance", zap.String("artifactName", *out.ArtifactName), zap.Any("TypeRef", out.TypeInstance.TypeRef), zap.Any("backend", out.Backend))
-		r.typeInstancesToOutput.typeInstances = append(r.typeInstancesToOutput.typeInstances, out)
+		})
 
 		for _, uses := range item.Uses {
 			usesArtifactName, ok := artifactNamesMap[uses]

@@ -1,8 +1,9 @@
 package client
 
 import (
-	"capact.io/capact/internal/ptr"
 	"reflect"
+
+	"capact.io/capact/internal/ptr"
 
 	"capact.io/capact/internal/maps"
 

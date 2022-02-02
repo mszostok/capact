@@ -59,7 +59,7 @@ func findTypeInstanceTypeRef(typeInstanceName string, impl *hubpublicgraphql.Imp
 	return nil, NewTypeReferenceNotFoundError(typeInstanceName)
 }
 
-func findOutputTypeInstance(step *WorkflowStep, typeInstanceName string) *TypeInstanceDefinition {
+func findOutputTypeInstance(step *WorkflowStep, typeInstanceName string) *CapactTypeInstanceOutputs {
 	for _, output := range step.CapactTypeInstanceOutputs {
 		if output.From == typeInstanceName {
 			return &output

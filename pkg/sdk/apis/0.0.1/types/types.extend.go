@@ -3,12 +3,18 @@ package types
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 )
 
-// OCFPathPrefix defines path prefix that all OCF manifest must have.
-const OCFPathPrefix = "cap."
+const (
+	// OCFPathPrefix defines path prefix that all OCF manifest must have.
+	OCFPathPrefix = "cap."
+	// HubBackendParentNodeName define parent path for the core hub storage.
+	HubBackendParentNodeName = "cap.core.type.hub.storage"
+
+	// maxBackendLookupForTypeRef defines maximum number of iteration to find a matching backend based on TypeRef path pattern.
+	maxBackendLookupForTypeRef = 30
+)
 
 // InterfaceRef holds the full path and revision to the Interface
 type InterfaceRef ManifestRefWithOptRevision
@@ -77,14 +83,11 @@ type ManifestMetadata struct {
 	Kind       ManifestKind `yaml:"kind"`
 }
 
-var DefaultTypeInstanceBackendKey = TypeRef{
-	Path:     "default.typeinstance.backend.key",
-	Revision: "default.typeinstance.backend.key",
-}
-
 // TypeInstanceBackendCollection knows which Backend should be used for a given TypeInstance based on the TypeRef
 type TypeInstanceBackendCollection struct {
-	data map[string]TypeInstanceBackend
+	byTypeRef      map[string]TypeInstanceBackend
+	byAlias        map[string]TypeInstanceBackend
+	defaultBackend TypeInstanceBackend
 }
 
 type TypeInstanceBackend struct {
@@ -92,49 +95,74 @@ type TypeInstanceBackend struct {
 	Description *string
 }
 
-func (t *TypeInstanceBackendCollection) Set(typeRef TypeRef, backend TypeInstanceBackend) {
-	if t.data == nil {
-		t.data = map[string]TypeInstanceBackend{}
-	}
-
-	t.data[t.key(typeRef)] = backend
+func (t *TypeInstanceBackendCollection) SetDefault(backend TypeInstanceBackend) {
+	t.defaultBackend = backend
 }
 
-func (t TypeInstanceBackendCollection) Get(typeRef TypeRef) TypeInstanceBackend {
-	// 1. Try the explict TypeRef
-	backend, found := t.data[t.key(typeRef)]
+func (t *TypeInstanceBackendCollection) SetByTypeRef(typeRef TypeRef, backend TypeInstanceBackend) {
+	if t.byTypeRef == nil {
+		t.byTypeRef = map[string]TypeInstanceBackend{}
+	}
+	t.byTypeRef[t.key(typeRef)] = backend
+}
+
+// GetByTypeRef returns storage backend for a given TypeRef.
+// If backend for an explicit TypeRef is not found, the pattern matching is used.
+//
+// For example, if TypeRef.path is `cap.type.capactio.examples.message`:
+//    - cap.type.capactio.examples.*
+//    - cap.type.capactio.*
+//    - cap.type.*
+//    - cap.*
+//
+// If both methods fail, default backend is returned.
+func (t TypeInstanceBackendCollection) GetByTypeRef(typeRef TypeRef) TypeInstanceBackend {
+	// 1. Try the explicit TypeRef
+	backend, found := t.byTypeRef[t.key(typeRef)]
 	if found {
 		return backend
 	}
 
-	// 2. Try to find matching entry for a given TypeRef.
-	// For example, if type ref is `cap.type.capactio.examples.message`:
-	//    - cap.type.capactio.examples.*
-	//    - cap.type.capactio.*
-	//    - cap.type.*
-	//    - cap.*
-	const (
-		stopper           = "cap"
-		maxIterationGuard = 30
+	// 2. Try to find matching pattern for a given TypeRef.
+
+	var (
+		subPath    = typeRef.Path
+		iterations = 0
 	)
 
-	iterations := 0
 	for {
-		if typeRef.Path == stopper || iterations > maxIterationGuard {
+		if fmt.Sprintf("%s.", subPath) == OCFPathPrefix || iterations > maxBackendLookupForTypeRef {
 			break
 		}
+		subPath = TrimLastNodeFromOCFPath(subPath)
 
-		typeRef.Path = strings.TrimSuffix(typeRef.Path, filepath.Ext(typeRef.Path))
-		keyPattern := fmt.Sprintf("%s.*", typeRef.Path)
-		fmt.Println(keyPattern)
-		backend, found := t.data[keyPattern]
-		if found {
-			return backend
+		keyPatterns := []string{
+			fmt.Sprintf("%s.*:%s", subPath, typeRef.Revision), // matching with revision has higher priority
+			fmt.Sprintf("%s.*", subPath),                      // check for path pattern only
+		}
+		for _, pattern := range keyPatterns {
+			backend, found := t.byTypeRef[pattern]
+			if found {
+				return backend
+			}
+
 		}
 		iterations++
 	}
 
-	return t.data[t.key(DefaultTypeInstanceBackendKey)]
+	return t.defaultBackend
+}
+
+func (t *TypeInstanceBackendCollection) GetByAlias(name string) (TypeInstanceBackend, bool) {
+	backend, found := t.byAlias[name]
+	return backend, found
+}
+
+func (t *TypeInstanceBackendCollection) SetByAlias(name string, backend TypeInstanceBackend) {
+	if t.byAlias == nil {
+		t.byAlias = map[string]TypeInstanceBackend{}
+	}
+	t.byAlias[name] = backend
 }
 
 func (t TypeInstanceBackendCollection) key(typeRef TypeRef) string {
@@ -142,4 +170,24 @@ func (t TypeInstanceBackendCollection) key(typeRef TypeRef) string {
 		return fmt.Sprintf("%s:%s", typeRef.Path, typeRef.Revision)
 	}
 	return typeRef.Path
+}
+
+func (t *TypeInstanceBackendCollection) GetAll() map[string]TypeInstanceBackend {
+	out := map[string]TypeInstanceBackend{}
+	for k, v := range t.byAlias {
+		out[k] = v
+	}
+	for k, v := range t.byTypeRef {
+		out[k] = v
+	}
+	return out
+}
+
+func TrimLastNodeFromOCFPath(in string) string {
+	idx := strings.LastIndex(in, ".")
+	if idx == -1 {
+		return in
+	}
+
+	return in[:idx]
 }

@@ -4,6 +4,11 @@ import (
 	"context"
 	"fmt"
 
+	"capact.io/capact/internal/ptr"
+	"capact.io/capact/internal/regexutil"
+	hubpublicgraphql "capact.io/capact/pkg/hub/api/graphql/public"
+	"capact.io/capact/pkg/hub/client/public"
+
 	"capact.io/capact/internal/multierror"
 
 	"capact.io/capact/pkg/engine/k8s/policy"
@@ -16,6 +21,7 @@ import (
 // HubClient defines Hub client which is able to find TypeInstance Type references.
 type HubClient interface {
 	FindTypeInstancesTypeRef(ctx context.Context, ids []string) (map[string]hublocalgraphql.TypeInstanceTypeReference, error)
+	ListTypes(ctx context.Context, opts ...public.TypeOption) ([]*hubpublicgraphql.Type, error)
 }
 
 // Resolver resolves Policy metadata against Hub.
@@ -49,7 +55,7 @@ func (r *Resolver) ResolveTypeInstanceMetadata(ctx context.Context, policy *poli
 		return nil
 	}
 
-	res, err := r.hubCli.FindTypeInstancesTypeRef(ctx, idsToQuery)
+	resolvedTypeRefs, err := r.hubCli.FindTypeInstancesTypeRef(ctx, idsToQuery)
 	if err != nil {
 		return errors.Wrap(err, "while finding TypeRef for TypeInstances")
 	}
@@ -57,7 +63,7 @@ func (r *Resolver) ResolveTypeInstanceMetadata(ctx context.Context, policy *poli
 	// verify if all TypeInstances are resolved
 	multiErr := multierror.New()
 	for _, ti := range unresolvedTIs {
-		if typeRef, exists := res[ti.ID]; exists && typeRef.Path != "" && typeRef.Revision != "" {
+		if typeRef, exists := resolvedTypeRefs[ti.ID]; exists && typeRef.Path != "" && typeRef.Revision != "" {
 			continue
 		}
 
@@ -67,14 +73,74 @@ func (r *Resolver) ResolveTypeInstanceMetadata(ctx context.Context, policy *poli
 		return multiErr
 	}
 
-	r.setTypeRefsForRequiredTypeInstances(policy, res)
-	r.setTypeRefsForAdditionalTypeInstances(policy, res)
-	r.setTypeRefsForBackendTypeInstances(policy, res) // probably change and verify that it's attached to `cap.core.type.hub.storage` node.
+	typeRefWithParentNodes, err := r.enrichWithParentNodes(ctx, resolvedTypeRefs)
+	if err != nil {
+		return errors.Wrap(err, "while resolving parent nodes for TypeRefs")
+	}
+
+	r.setTypeRefsForAdditionalTypeInstances(policy, typeRefWithParentNodes)
+	r.setTypeRefsForRequiredTypeInstances(policy, typeRefWithParentNodes)
+	r.setTypeRefsForBackendTypeInstances(policy, typeRefWithParentNodes)
 
 	return nil
 }
 
-func (r *Resolver) setTypeRefsForRequiredTypeInstances(policy *policy.Policy, typeRefs map[string]hublocalgraphql.TypeInstanceTypeReference) {
+type TypeRefWithParentNodes struct {
+	types.TypeRef
+	AdditionalRefs []string
+}
+
+func (r *Resolver) enrichWithParentNodes(ctx context.Context, refs map[string]hublocalgraphql.TypeInstanceTypeReference) (map[string]TypeRefWithParentNodes, error) {
+	out := map[string]TypeRefWithParentNodes{}
+
+	// TODO: unify...
+	typesPath := r.mapToPathSlice(refs)
+	const typeListQueryFields = public.TypeRevisionRootFields | public.TypeRevisionSpecAdditionalRefsField
+	filter := regexutil.OrStringSlice(typesPath)
+	res, err := r.hubCli.ListTypes(ctx, public.WithTypeRevisions(typeListQueryFields), public.WithTypeFilter(hubpublicgraphql.TypeFilter{
+		PathPattern: ptr.String(filter),
+	}))
+	if err != nil {
+		return nil, err
+	}
+
+	gotAttachedTypes := map[string][]string{}
+	for _, item := range res {
+		if item == nil {
+			continue
+		}
+		for _, rev := range item.Revisions {
+			if rev.Spec == nil {
+				continue
+			}
+			gotAttachedTypes[r.key(item.Path, rev.Revision)] = rev.Spec.AdditionalRefs
+		}
+	}
+
+	for id, ref := range refs {
+		parents := gotAttachedTypes[r.key(ref.Path, ref.Revision)]
+		out[id] = TypeRefWithParentNodes{
+			TypeRef:        types.TypeRef(ref),
+			AdditionalRefs: parents,
+		}
+	}
+
+	return out, nil
+}
+
+func (r *Resolver) key(a, b string) string {
+	return fmt.Sprintf("%s:%s", a, b)
+}
+
+func (r *Resolver) mapToPathSlice(in map[string]hublocalgraphql.TypeInstanceTypeReference) []string {
+	var paths []string
+	for _, expType := range in {
+		paths = append(paths, expType.Path)
+	}
+	return paths
+}
+
+func (r *Resolver) setTypeRefsForRequiredTypeInstances(policy *policy.Policy, typeRefs map[string]TypeRefWithParentNodes) {
 	for ruleIdx, rule := range policy.Interface.Rules {
 		for ruleItemIdx, ruleItem := range rule.OneOf {
 			if ruleItem.Inject == nil {
@@ -90,12 +156,13 @@ func (r *Resolver) setTypeRefsForRequiredTypeInstances(policy *policy.Policy, ty
 					Path:     typeRef.Path,
 					Revision: typeRef.Revision,
 				}
+				policy.Interface.Rules[ruleIdx].OneOf[ruleItemIdx].Inject.RequiredTypeInstances[reqTIIdx].ExtendsHubBackend = r.isExtendingHubStorage(typeRef.AdditionalRefs)
 			}
 		}
 	}
 }
 
-func (r *Resolver) setTypeRefsForAdditionalTypeInstances(policy *policy.Policy, typeRefs map[string]hublocalgraphql.TypeInstanceTypeReference) {
+func (r *Resolver) setTypeRefsForAdditionalTypeInstances(policy *policy.Policy, typeRefs map[string]TypeRefWithParentNodes) {
 	for ruleIdx, rule := range policy.Interface.Rules {
 		for ruleItemIdx, ruleItem := range rule.OneOf {
 			if ruleItem.Inject == nil {
@@ -116,7 +183,7 @@ func (r *Resolver) setTypeRefsForAdditionalTypeInstances(policy *policy.Policy, 
 	}
 }
 
-func (r *Resolver) setTypeRefsForBackendTypeInstances(policy *policy.Policy, typeRefs map[string]hublocalgraphql.TypeInstanceTypeReference) {
+func (r *Resolver) setTypeRefsForBackendTypeInstances(policy *policy.Policy, typeRefs map[string]TypeRefWithParentNodes) {
 	for ruleIdx, rule := range policy.TypeInstance.Rules {
 		typeRef, exists := typeRefs[rule.Backend.ID]
 		if !exists {
@@ -127,5 +194,15 @@ func (r *Resolver) setTypeRefsForBackendTypeInstances(policy *policy.Policy, typ
 			Path:     typeRef.Path,
 			Revision: typeRef.Revision,
 		}
+		policy.TypeInstance.Rules[ruleIdx].Backend.ExtendsHubBackend = r.isExtendingHubStorage(typeRef.AdditionalRefs)
 	}
+}
+
+func (r *Resolver) isExtendingHubStorage(parents []string) bool {
+	for _, ref := range parents {
+		if ref == types.HubBackendParentNodeName {
+			return true
+		}
+	}
+	return false
 }

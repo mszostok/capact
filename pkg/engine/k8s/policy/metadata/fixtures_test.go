@@ -3,7 +3,11 @@ package metadata_test
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
+
+	hubpublicgraphql "capact.io/capact/pkg/hub/api/graphql/public"
+	"capact.io/capact/pkg/hub/client/public"
 
 	"capact.io/capact/internal/ptr"
 	"capact.io/capact/pkg/engine/k8s/policy"
@@ -369,4 +373,41 @@ func (f *fakeHub) FindTypeInstancesTypeRef(_ context.Context, ids []string) (map
 	}
 
 	return res, nil
+}
+
+func (f *fakeHub) ListTypes(_ context.Context, opts ...public.TypeOption) ([]*hubpublicgraphql.Type, error) {
+	if !f.ShouldRun {
+		return nil, errors.New("shouldn't run")
+	}
+
+	var allTypes []*hubpublicgraphql.Type
+	for id := 0; id < f.ExpectedIDLen; id++ {
+		allTypes = append(allTypes, &hubpublicgraphql.Type{
+			Path: fmt.Sprintf("cap.type.type%d", id),
+			Revision: &hubpublicgraphql.TypeRevision{
+				Revision: fmt.Sprintf("0.%d.0", id),
+			},
+		})
+	}
+
+	typeOpts := &public.TypeOptions{}
+	typeOpts.Apply(opts...)
+
+	if typeOpts.Filter.PathPattern == nil {
+		return allTypes, nil
+	}
+
+	var out []*hubpublicgraphql.Type
+	for _, item := range allTypes {
+		matched, err := regexp.MatchString(*typeOpts.Filter.PathPattern, item.Path)
+		if err != nil {
+			return nil, err
+		}
+		if !matched {
+			continue
+		}
+		out = append(out, item)
+	}
+
+	return out, nil
 }

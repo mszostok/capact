@@ -126,6 +126,9 @@ type TypeInstanceReference struct {
 	// TypeRef refers to a given Type. Ignores if present in Policy as this is resolved only in runtime
 	// based on real data stored in Hub.
 	TypeRef *types.ManifestRef `json:"-"`
+
+	// ExtendsHubBackend must be set to `true` if TypeRef is a child of `cap.core.type.hub.storage` node.
+	ExtendsHubBackend bool `json:"-"`
 }
 
 // AdditionalTypeInstanceToInject is used to represent additional TypeInstance injection for a given Implementation.

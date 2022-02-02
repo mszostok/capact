@@ -1,10 +1,12 @@
 package client
 
 import (
-	"capact.io/capact/internal/ptr"
 	"context"
 	"fmt"
+	"strings"
 	"sync"
+
+	"capact.io/capact/internal/ptr"
 
 	"capact.io/capact/pkg/engine/k8s/policy/metadata"
 	"capact.io/capact/pkg/sdk/validation"
@@ -26,6 +28,7 @@ type HubClient interface {
 	ListTypeInstancesTypeRef(ctx context.Context) ([]hublocalgraphql.TypeInstanceTypeReference, error)
 	FindInterfaceRevision(ctx context.Context, ref hubpublicgraphql.InterfaceReference, opts ...public.InterfaceRevisionOption) (*hubpublicgraphql.InterfaceRevision, error)
 	FindTypeInstancesTypeRef(ctx context.Context, ids []string) (map[string]hublocalgraphql.TypeInstanceTypeReference, error)
+	ListTypes(ctx context.Context, opts ...public.TypeOption) ([]*hubpublicgraphql.Type, error)
 }
 
 // PolicyIOValidator defines validator used for PolicyEnforcedClient.
@@ -105,57 +108,30 @@ func (e *PolicyEnforcedClient) ListImplementationRevisionForInterface(ctx contex
 	return implementations, rule, nil
 }
 
-// ListRequiredTypeInstancesToInjectBasedOnPolicy returns the required TypeInstance references,
-// which have to be injected into the Action, based on the current policy rules.
-func (e *PolicyEnforcedClient) ListRequiredTypeInstancesToInjectBasedOnPolicy(policyRule policy.Rule, implRev hubpublicgraphql.ImplementationRevision) ([]types.InputTypeInstanceRef, error) {
-	requiredTIs := policyRule.RequiredTypeInstancesToInject()
-	if len(requiredTIs) == 0 {
-		return nil, nil
-	}
-
-	if res := e.validator.ValidateTypeInstancesMetadataForRule(policyRule); res.Len() > 0 {
-		return nil, e.wrapValidationResultError(res.ErrorOrNil(), "while validating Policy rule")
-	}
-
-	var typeInstancesToInject []types.InputTypeInstanceRef
-	for _, typeInstance := range requiredTIs {
-		alias, found := e.findAliasForTypeInstance(typeInstance, implRev)
-		if !found {
-			// Implementation doesn't require such TypeInstance, skip injecting it
-			continue
-		}
-
-		typeInstanceToInject := types.InputTypeInstanceRef{
-			Name: alias,
-			ID:   typeInstance.ID,
-		}
-
-		typeInstancesToInject = append(typeInstancesToInject, typeInstanceToInject)
-	}
-
-	return typeInstancesToInject, nil
-}
-
-func (e *PolicyEnforcedClient) ListTypeInstancesBackendsBasedOnPolicy(ctx context.Context, policyRule policy.Rule) (types.TypeInstanceBackendCollection, error) {
+func (e *PolicyEnforcedClient) ListTypeInstancesBackendsBasedOnPolicy(ctx context.Context, rule policy.Rule, implRev hubpublicgraphql.ImplementationRevision) (types.TypeInstanceBackendCollection, error) {
 	out := types.TypeInstanceBackendCollection{}
 
 	// TODO: set default PostgreSQL storage
-	out.Set(types.DefaultTypeInstanceBackendKey, types.TypeInstanceBackend{
+	out.SetDefault(types.TypeInstanceBackend{
 		ID:          "123123123123",
 		Description: ptr.String("Default Capact storage"),
 	})
+
 	// 1. Global Defaults
 	for _, rule := range e.mergedPolicy.TypeInstance.Rules {
-		//if rule.TypeRef.Revision == nil || *rule.TypeRef.Revision == "" {
-		//latestRev, err := e.hubCli.GetTypeLatestRevisionString(ctx, interfaceRef)
-		//if err != nil {
-		//	return out, errors.Wrap(err, "while fetching latest Interface revision string")
-		//}
-		//
-		//rule.TypeRef.Revision = latestRev
-		//}
+		if rule.TypeRef.Revision == nil || *rule.TypeRef.Revision == "" {
+			if !strings.Contains(rule.TypeRef.Path, "*") {
+				rule.TypeRef.Revision = ptr.String("")
+			} else {
+				//latestRev, err := e.hubCli.GetTypeLatestRevisionString(ctx, interfaceRef)
+				//if err != nil {
+				//	return out, errors.Wrap(err, "while fetching latest Interface revision string")
+				//}
+				//rule.TypeRef.Revision = latestRev
+			}
+		}
 
-		out.Set(types.TypeRef{
+		out.SetByTypeRef(types.TypeRef{
 			Path:     rule.TypeRef.Path,
 			Revision: *rule.TypeRef.Revision, // it's resolved
 		}, types.TypeInstanceBackend{
@@ -165,12 +141,109 @@ func (e *PolicyEnforcedClient) ListTypeInstancesBackendsBasedOnPolicy(ctx contex
 	}
 
 	// TODO(https://github.com/capactio/capact/issues/624):
-	// 2. Override with Interface defaults
-	// e.mergedPolicy.Interface.Defaults // find types which extend `cap.core.type.hub.storage`
+	// 2. Resolve defaults for aliases
+	// e.mergedPolicy.Interface.Defaults
 
-	// 3. Override with Interface
-	// policyRule.Inject.RequiredTypeInstances // find requires which extend `cap.core.type.hub.storage`
+	//3. Override default for aliases with
+
+	// Option to find policy rule based on Implementation? revers engineering..
+	//var rules []policy.Rule
+	//for _, iface := range implRev.Interfaces {
+	//	if iface.Metadata == nil {
+	//		continue
+	//	}
+	//	ifacePolicy := e.findRulesForInterface(hubpublicgraphql.InterfaceReference{
+	//		Path:     iface.Metadata.Path,
+	//		Revision: iface.Revision,
+	//	})
+	//
+	//	for _, rule := range ifacePolicy.OneOf {
+	//		constrains := rule.ImplementationConstraints
+	//
+	//		if constrains.Path != nil && *constrains.Path == implRev.Metadata.Path {
+	//			rules = append(rules, rule)
+	//		}
+	//
+	//		if constrains.Attributes != nil {
+	//			for _, attr := range *constrains.Attributes {
+	//				 // TODO:
+	//			}
+	//		}
+	//
+	//		constrains.Requires // validate...
+	//	}
+	//}
+
+	inject, err := e.listRequiredTypeInstancesToInjectBasedOnPolicy(rule, implRev)
+
+	if err != nil {
+		return types.TypeInstanceBackendCollection{}, err
+	}
+	for _, rule := range inject {
+		if !rule.ExtendsHubBackend {
+			continue
+		}
+
+		out.SetByAlias(rule.Name, types.TypeInstanceBackend{
+			ID:          rule.ID,
+			Description: rule.Description,
+		})
+	}
+
 	return out, nil
+}
+
+// ListRequiredTypeInstancesToInjectBasedOnPolicy returns the required TypeInstance references,
+// which have to be injected into the Action, based on the current policy rules.
+func (e *PolicyEnforcedClient) ListRequiredTypeInstancesToInjectBasedOnPolicy(policyRule policy.Rule, implRev hubpublicgraphql.ImplementationRevision) ([]types.InputTypeInstanceRef, error) {
+	var typeInstancesToInject []types.InputTypeInstanceRef
+	inject, err := e.listRequiredTypeInstancesToInjectBasedOnPolicy(policyRule, implRev)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, typeInstance := range inject {
+		typeInstancesToInject = append(typeInstancesToInject, typeInstance.InputTypeInstanceRef)
+	}
+
+	return typeInstancesToInject, nil
+}
+
+type requiredTypeInstanceToInject struct {
+	types.InputTypeInstanceRef
+	ExtendsHubBackend bool
+	Description       *string
+}
+
+func (e *PolicyEnforcedClient) listRequiredTypeInstancesToInjectBasedOnPolicy(policyRule policy.Rule, implRev hubpublicgraphql.ImplementationRevision) ([]requiredTypeInstanceToInject, error) {
+	requiredTIs := policyRule.RequiredTypeInstancesToInject()
+	if len(requiredTIs) == 0 {
+		return nil, nil
+	}
+
+	if res := e.validator.ValidateTypeInstancesMetadataForRule(policyRule); res.Len() > 0 {
+		return nil, e.wrapValidationResultError(res.ErrorOrNil(), "while validating Policy rule")
+	}
+
+	var typeInstancesToInject []requiredTypeInstanceToInject
+	for _, typeInstance := range requiredTIs {
+		alias, found := e.findAliasForTypeInstance(typeInstance, implRev)
+		if !found {
+			// Implementation doesn't require such TypeInstance, skip injecting it
+			continue
+		}
+
+		typeInstancesToInject = append(typeInstancesToInject, requiredTypeInstanceToInject{
+			InputTypeInstanceRef: types.InputTypeInstanceRef{
+				Name: alias,
+				ID:   typeInstance.ID,
+			},
+			ExtendsHubBackend: typeInstance.ExtendsHubBackend,
+			Description:       typeInstance.Description,
+		})
+	}
+
+	return typeInstancesToInject, nil
 }
 
 // ListAdditionalTypeInstancesToInjectBasedOnPolicy returns the additional TypeInstance references,
@@ -367,10 +440,6 @@ func (e *PolicyEnforcedClient) findImplementationsForRules(
 }
 
 func (e *PolicyEnforcedClient) findAliasForTypeInstance(typeInstance policy.RequiredTypeInstanceToInject, implRev hubpublicgraphql.ImplementationRevision) (string, bool) {
-	if implRev.Spec == nil || len(implRev.Spec.Requires) == 0 {
-		return "", false
-	}
-
 	for _, req := range implRev.Spec.Requires {
 		var itemsToCheck []*hubpublicgraphql.ImplementationRequirementItem
 		itemsToCheck = append(itemsToCheck, req.OneOf...)

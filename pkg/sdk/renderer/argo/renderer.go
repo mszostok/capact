@@ -29,7 +29,7 @@ type PolicyEnforcedHubClient interface {
 	ListRequiredTypeInstancesToInjectBasedOnPolicy(policyRule policy.Rule, implRev hubpublicapi.ImplementationRevision) ([]types.InputTypeInstanceRef, error)
 	ListAdditionalTypeInstancesToInjectBasedOnPolicy(policyRule policy.Rule, implRev hubpublicapi.ImplementationRevision) ([]types.InputTypeInstanceRef, error)
 	ListAdditionalInputToInjectBasedOnPolicy(ctx context.Context, policyRule policy.Rule, implRev hubpublicapi.ImplementationRevision) (types.ParametersCollection, error)
-	ListTypeInstancesBackendsBasedOnPolicy(ctx context.Context, policyRule policy.Rule) (types.TypeInstanceBackendCollection, error)
+	ListTypeInstancesBackendsBasedOnPolicy(ctx context.Context, policyRule policy.Rule, implRev hubpublicapi.ImplementationRevision) (types.TypeInstanceBackendCollection, error)
 	SetGlobalPolicy(policy policy.Policy)
 	SetActionPolicy(policy policy.ActionPolicy)
 	PushWorkflowStepPolicy(policy policy.WorkflowPolicy) error
@@ -115,7 +115,7 @@ func (r *Renderer) Render(ctx context.Context, input *RenderInput) (*RenderOutpu
 	}
 
 	// 3. Extract workflow from the root Implementation
-	rootWorkflow, _, err := dedicatedRenderer.UnmarshalWorkflowFromImplementation("", &implementation)
+	rootWorkflow, newArtifactMappings, err := dedicatedRenderer.UnmarshalWorkflowFromImplementation("", &implementation)
 	if err != nil {
 		return nil, errors.Wrap(err, "while creating root workflow")
 	}
@@ -184,17 +184,22 @@ func (r *Renderer) Render(ctx context.Context, input *RenderInput) (*RenderOutpu
 	availableArtifacts := dedicatedRenderer.tplInputArguments[dedicatedRenderer.entrypointStep.Template]
 
 	// 9. Register output TypeInstances
-	typeInstancesBackends, err := policyEnforcedClient.ListTypeInstancesBackendsBasedOnPolicy(ctx, rule)
+	typeInstancesBackends, err := policyEnforcedClient.ListTypeInstancesBackendsBasedOnPolicy(ctx, rule, implementation)
 	if err != nil {
 		return nil, errors.Wrap(err, "while resolving TypeInstance backend based on Policy")
 	}
 
-	if err := dedicatedRenderer.addOutputTypeInstancesToGraph(nil, "", iface, &implementation, availableArtifacts, typeInstancesBackends); err != nil {
+	r.log.Debug("AAaaaaaaAaaaaaaAaaaaaaAaaaaaaAaaaaaaAaaaaaaAaaaaaaAaaaaaaAaaaaaaAaaaaaaAaaaaaaAaaaaaaAaaaaaa")
+	if err := dedicatedRenderer.addOutputTypeInstancesToGraph(nil, "", iface, &implementation, availableArtifacts, typeInstancesBackends, newArtifactMappings); err != nil {
 		return nil, errors.Wrap(err, "while noting output artifacts")
 	}
+	r.log.Debug("AAaaaaaaAaaaaaaAaaaaaaAaaaaaaAaaaaaaAaaaaaaAaaaaaaAaaaaaaAaaaaaaAaaaaaaAaaaaaaAaaaaaaAaaaaaa")
 
 	// 10. Render rootWorkflow templates
-	_, err = dedicatedRenderer.RenderTemplateSteps(ctxWithTimeout, rootWorkflow, implementation.Spec.Imports, dedicatedRenderer.inputTypeInstances, "")
+	_, err = dedicatedRenderer.RenderTemplateSteps(ctxWithTimeout, rootWorkflow, RootImplementation{
+		Revision: implementation,
+		Rule:     rule,
+	}, dedicatedRenderer.inputTypeInstances, "")
 	if err != nil {
 		return nil, err
 	}
