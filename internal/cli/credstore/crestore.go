@@ -10,6 +10,4 @@ type Keyring interface {
 	Set(item keyring.Item) error
 	// Remove removes the item with matching key
 	Remove(key string) error
-	// Keys provides a slice of all keys stored on the keyring
-	Keys() ([]string, error)
 }
